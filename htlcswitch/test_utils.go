@@ -273,7 +273,7 @@ func createTestChannel(alicePrivKey, bobPrivKey []byte,
 		return nil, nil, nil, err
 	}
 
-	dbAlice, err := channeldb.Open(alicePath)
+	dbAlice, err := channeldb.Open(alicePath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -283,7 +283,7 @@ func createTestChannel(alicePrivKey, bobPrivKey []byte,
 		return nil, nil, nil, err
 	}
 
-	dbBob, err := channeldb.Open(bobPath)
+	dbBob, err := channeldb.Open(bobPath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -421,7 +421,7 @@ func createTestChannel(alicePrivKey, bobPrivKey []byte,
 		switch err {
 		case nil:
 		case bbolt.ErrDatabaseNotOpen:
-			dbAlice, err = channeldb.Open(dbAlice.Path())
+			dbAlice, err = channeldb.Open(dbAlice.Path(), "channel.db")
 			if err != nil {
 				return nil, errors.Errorf("unable to reopen alice "+
 					"db: %v", err)
@@ -465,7 +465,7 @@ func createTestChannel(alicePrivKey, bobPrivKey []byte,
 		switch err {
 		case nil:
 		case bbolt.ErrDatabaseNotOpen:
-			dbBob, err = channeldb.Open(dbBob.Path())
+			dbBob, err = channeldb.Open(dbBob.Path(), "channel.db")
 			if err != nil {
 				return nil, errors.Errorf("unable to reopen bob "+
 					"db: %v", err)

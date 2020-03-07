@@ -207,7 +207,7 @@ func createTestPeer(notifier chainntnfs.ChainNotifier, publTx chan *wire.MsgTx,
 		return nil, nil, nil, nil, err
 	}
 
-	dbAlice, err := channeldb.Open(alicePath)
+	dbAlice, err := channeldb.Open(alicePath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -217,7 +217,7 @@ func createTestPeer(notifier chainntnfs.ChainNotifier, publTx chan *wire.MsgTx,
 		return nil, nil, nil, nil, err
 	}
 
-	dbBob, err := channeldb.Open(bobPath)
+	dbBob, err := channeldb.Open(bobPath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

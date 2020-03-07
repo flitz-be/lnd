@@ -229,7 +229,7 @@ func Main(lisCfg ListenerCfg) error {
 	// network related metadata.
 	startOpenTime := time.Now()
 	chanDB, err := channeldb.Open(
-		graphDir,
+		graphDir, "channel.db",
 		channeldb.OptionSetRejectCacheSize(cfg.Caches.RejectCacheSize),
 		channeldb.OptionSetChannelCacheSize(cfg.Caches.ChannelCacheSize),
 		channeldb.OptionSetSyncFreelist(cfg.SyncFreelist),

@@ -145,7 +145,7 @@ func initDB() (*channeldb.DB, error) {
 		return nil, err
 	}
 
-	db, err := channeldb.Open(tempPath)
+	db, err := channeldb.Open(tempPath, "channel.db")
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +759,7 @@ func newDB() (*channeldb.DB, func(), error) {
 	}
 
 	// Next, create channeldb for the first time.
-	cdb, err := channeldb.Open(tempDirName)
+	cdb, err := channeldb.Open(tempDirName, "channel.db")
 	if err != nil {
 		os.RemoveAll(tempDirName)
 		return nil, nil, err

@@ -143,14 +143,8 @@ type DB struct {
 
 // Open opens an existing channeldb. Any necessary schemas migrations due to
 // updates will take place as necessary.
-func Open(dbPath string, modifiers ...OptionModifier) (*DB, error) {
+func Open(dbPath, dbName string, modifiers ...OptionModifier) (*DB, error) {
 	path := filepath.Join(dbPath, dbName)
-
-	if !fileExists(path) {
-		if err := createChannelDB(dbPath); err != nil {
-			return nil, err
-		}
-	}
 
 	opts := DefaultOptions()
 	for _, modifier := range modifiers {
@@ -162,6 +156,7 @@ func Open(dbPath string, modifiers ...OptionModifier) (*DB, error) {
 	options := &bbolt.Options{
 		NoFreelistSync: opts.NoFreelistSync,
 		FreelistType:   bbolt.FreelistMapType,
+		ReadOnly:       opts.ReadOnly,
 	}
 
 	bdb, err := bbolt.Open(path, dbFilePermission, options)
@@ -177,6 +172,11 @@ func Open(dbPath string, modifiers ...OptionModifier) (*DB, error) {
 	chanDB.graph = newChannelGraph(
 		chanDB, opts.RejectCacheSize, opts.ChannelCacheSize,
 	)
+
+	// Don't do any migrations in read-only mode.
+	if opts.ReadOnly {
+		return chanDB, nil
+	}
 
 	// Synchronize the version of database and apply migrations if needed.
 	if err := chanDB.syncVersions(dbVersions); err != nil {

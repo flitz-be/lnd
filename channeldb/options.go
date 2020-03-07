@@ -29,6 +29,10 @@ type Options struct {
 	// increased startup time.
 	NoFreelistSync bool
 
+	// ReadOnly specifies if the underlying bolt DB should be opened in read
+	// only mode (useful for recovery).
+	ReadOnly bool
+
 	// clock is the time source used by the database.
 	clock clock.Clock
 }
@@ -39,6 +43,7 @@ func DefaultOptions() Options {
 		RejectCacheSize:  DefaultRejectCacheSize,
 		ChannelCacheSize: DefaultChannelCacheSize,
 		NoFreelistSync:   true,
+		ReadOnly:         true,
 		clock:            clock.NewDefaultClock(),
 	}
 }
@@ -64,6 +69,13 @@ func OptionSetChannelCacheSize(n int) OptionModifier {
 func OptionSetSyncFreelist(b bool) OptionModifier {
 	return func(o *Options) {
 		o.NoFreelistSync = !b
+	}
+}
+
+// OptionReadOnly allows the database to be opened in read only mode.
+func OptionReadOnly(b bool) OptionModifier {
+	return func(o *Options) {
+		o.ReadOnly = b
 	}
 }
 

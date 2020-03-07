@@ -224,7 +224,7 @@ func CreateTestChannels(tweaklessCommits bool) (
 		return nil, nil, nil, err
 	}
 
-	dbAlice, err := channeldb.Open(alicePath)
+	dbAlice, err := channeldb.Open(alicePath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -234,7 +234,7 @@ func CreateTestChannels(tweaklessCommits bool) (
 		return nil, nil, nil, err
 	}
 
-	dbBob, err := channeldb.Open(bobPath)
+	dbBob, err := channeldb.Open(bobPath, "channel.db")
 	if err != nil {
 		return nil, nil, nil, err
 	}
