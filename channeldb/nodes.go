@@ -173,6 +173,9 @@ func fetchLinkNode(tx *bbolt.Tx, targetPub *btcec.PublicKey) (*LinkNode, error) 
 
 	// If a link node for that particular public key cannot be located,
 	// then exit early with an ErrNodeNotFound.
+	if targetPub == nil {
+		return &LinkNode{}, nil
+	}
 	pubKey := targetPub.SerializeCompressed()
 	nodeBytes := nodeMetaBucket.Get(pubKey)
 	if nodeBytes == nil {

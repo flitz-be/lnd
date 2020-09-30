@@ -1209,7 +1209,8 @@ func fetchOpenChannel(chanBucket *bbolt.Bucket,
 	// First, we'll read all the static information that changes less
 	// frequently from disk.
 	if err := fetchChanInfo(chanBucket, channel); err != nil {
-		return nil, fmt.Errorf("unable to fetch chan info: %v", err)
+		log.Errorf("unable to fetch chan info: %v", err)
+		return &OpenChannel{}, nil
 	}
 
 	// With the static information read, we'll now read the current
