@@ -173,10 +173,19 @@ func (b *BtcWallet) Start() error {
 		err := walletdb.Update(b.db, func(tx walletdb.ReadWriteTx) error {
 			addrmgrNs := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 
-			_, err := b.wallet.Manager.NewScopedKeyManager(
+			mgr, err := b.wallet.Manager.NewScopedKeyManager(
 				addrmgrNs, b.chainKeyScope, lightningAddrSchema,
 			)
-			return err
+			if err != nil {
+				return err
+			}
+
+			err = mgr.NewRawAccount(addrmgrNs, uint32(keychain.KeyFamilyPaymentBase))
+			if err != nil {
+				return err
+			}
+			
+			return nil
 		})
 		if err != nil {
 			return err

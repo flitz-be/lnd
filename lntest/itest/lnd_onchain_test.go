@@ -650,7 +650,7 @@ func restoreCheckBalance(t *harnessTest, password []byte, mnemonic []string,
 	recoveryWindow int32, fn func(*lntest.HarnessNode)) {
 
 	t.t.Helper()
-	
+
 	ctxb := context.Background()
 
 	// Restore Carol, passing in the password, mnemonic, and
@@ -708,4 +708,48 @@ func restoreCheckBalance(t *harnessTest, password []byte, mnemonic []string,
 	// Lastly, shutdown this Carol so we can move on to the next
 	// restoration.
 	shutdownAndAssert(t.lndHarness, t, node)
+}
+
+// testStaticRemoteKeyRecovery makes sure a node scans all relevant key scopes
+// when restoring an on-chain wallet, for example the keys used for static
+// remote commitment outputs.
+func testStaticRemoteKeyRecovery(net *lntest.NetworkHarness, t *harnessTest) {
+	ctxb := context.Background()
+
+	// First, create a new node with strong passphrase and grab the mnemonic
+	// used for key derivation. This will bring up Carol with an empty
+	// wallet, and such that she is synced up.
+	password := []byte("The Magic Words are Squeamish Ossifrage")
+	carol, mnemonic, _, err := net.NewNodeWithSeed(
+		"Carol", nil, password, false,
+	)
+	require.NoError(t.t, err)
+	err = net.EnsureConnected(ctxb, net.Alice, carol)
+	require.NoError(t.t, err)
+
+	// We open a channel from Alice to Carol with a push amount large enough
+	// to be relevant when sweeping.
+	rpcChannel := openChannelAndAssert(
+		ctxb, t, net, net.Alice, carol, lntest.OpenChannelParams{
+			Amt:     1_500_000,
+			PushAmt: 1_000_000,
+		},
+	)
+
+	// Let's now shut down Carol and make sure all state is deleted.
+	shutdownAndAssert(net, t, carol)
+
+	// Now that Carol won't try to sweep the tweakless output right away, we
+	// can force close the channel.
+	closeUpdates, _, err := net.CloseChannel(
+		ctxb, net.Alice, rpcChannel, true,
+	)
+	require.NoError(t.t, err)
+	_ = assertChannelClosed(
+		ctxb, t, net, net.Alice, rpcChannel, false, closeUpdates,
+	)
+
+	// We restore Carol now and expect the wallet to find the 1 million
+	// sats waiting in the force closed output.
+	restoreCheckBalance(t, password, mnemonic, 1_000_000, 1, 1000, nil)
 }

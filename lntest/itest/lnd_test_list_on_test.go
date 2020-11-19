@@ -286,4 +286,8 @@ var allTestCases = []*testCase{
 		name: "stateless init",
 		test: testStatelessInit,
 	},
+	{
+		name: "static remote key recovery",
+		test: testStaticRemoteKeyRecovery,
+	},
 }
