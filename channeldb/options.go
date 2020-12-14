@@ -50,6 +50,10 @@ type Options struct {
 	// path finding.
 	UseGraphCache bool
 
+	// ReadOnly specifies if the underlying bolt DB should be opened in read
+	// only mode (useful for recovery).
+	ReadOnly bool
+
 	// clock is the time source used by the database.
 	clock clock.Clock
 
@@ -71,6 +75,7 @@ func DefaultOptions() Options {
 		ChannelCacheSize:      DefaultChannelCacheSize,
 		PreAllocCacheNumNodes: DefaultPreAllocCacheNumNodes,
 		UseGraphCache:         true,
+		ReadOnly:              false,
 		clock:                 clock.NewDefaultClock(),
 	}
 }
@@ -133,6 +138,13 @@ func OptionAutoCompactMinAge(minAge time.Duration) OptionModifier {
 func OptionSetBatchCommitInterval(interval time.Duration) OptionModifier {
 	return func(o *Options) {
 		o.BatchCommitInterval = interval
+	}
+}
+
+// OptionReadOnly allows the database to be opened in read only mode.
+func OptionReadOnly(b bool) OptionModifier {
+	return func(o *Options) {
+		o.ReadOnly = b
 	}
 }
 
