@@ -22,6 +22,7 @@ RUN cd /tmp \
   && go get github.com/golang/protobuf/protoc-gen-go@${PROTOC_GEN_VERSION} \
   && go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@${GRPC_GATEWAY_VERSION} \
   && go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@${GRPC_GATEWAY_VERSION} \
+  && go get github.com/guggero/protoc-gen-rest-metadata@0ee8269 \
   && go get github.com/lightninglabs/falafel@${FALAFEL_VERSION} \
   && go get golang.org/x/tools/cmd/goimports \
   && chmod -R 777 /tmp/build/

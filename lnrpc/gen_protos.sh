@@ -24,6 +24,10 @@ function generate() {
       --grpc-gateway_out=logtostderr=true,paths=source_relative,grpc_api_configuration=rest-annotations.yaml:. \
       "${file}"
   
+    # Generate the REST metadata.
+    protoc -I/usr/local/include -I. \
+      --rest-metadata_out=logtostderr=true,paths=source_relative,grpc_api_configuration=rest-annotations.yaml:. \
+      "${file}"
   
     # Finally, generate the swagger file which describes the REST API in detail.
     protoc -I/usr/local/include -I. \
