@@ -27,6 +27,10 @@ const (
 	// etcdDefaultRootBucketId is used as the root bucket key. Note that
 	// the actual key is not visible, since all bucket keys are hashed.
 	etcdDefaultRootBucketId = "@"
+
+	// DefaultMaxCallSize is the default maximum call size in bytes we allow
+	// for a single database transaction message on the client side.
+	DefaultMaxCallSize int = 16384*1024 - 1
 )
 
 // callerStats holds commit stats for a specific caller. Currently it only
@@ -132,15 +136,16 @@ type db struct {
 // Enforce db implements the walletdb.DB interface.
 var _ walletdb.DB = (*db)(nil)
 
-// newEtcdBackend returns a db object initialized with the passed backend
-// config. If etcd connection cannot be established, then returns error.
-func newEtcdBackend(ctx context.Context, cfg Config) (*db, error) {
+// NewEtcdClient creates a new etcd v3 API client.
+func NewEtcdClient(ctx context.Context, cfg Config) (*clientv3.Client,
+	context.Context, func(), error) {
+
 	clientCfg := clientv3.Config{
 		Endpoints:          []string{cfg.Host},
 		DialTimeout:        etcdConnectionTimeout,
 		Username:           cfg.User,
 		Password:           cfg.Pass,
-		MaxCallSendMsgSize: 16384*1024 - 1,
+		MaxCallSendMsgSize: DefaultMaxCallSize,
 	}
 
 	if !cfg.DisableTLS {
@@ -152,7 +157,7 @@ func newEtcdBackend(ctx context.Context, cfg Config) (*db, error) {
 
 		tlsConfig, err := tlsInfo.ClientConfig()
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
 		clientCfg.TLS = tlsConfig
@@ -163,13 +168,24 @@ func newEtcdBackend(ctx context.Context, cfg Config) (*db, error) {
 	cli, err := clientv3.New(clientCfg)
 	if err != nil {
 		cancel()
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	// Apply the namespace.
 	cli.KV = namespace.NewKV(cli.KV, cfg.Namespace)
 	cli.Watcher = namespace.NewWatcher(cli.Watcher, cfg.Namespace)
 	cli.Lease = namespace.NewLease(cli.Lease, cfg.Namespace)
+
+	return cli, ctx, cancel, nil
+}
+
+// newEtcdBackend returns a db object initialized with the passed backend
+// config. If etcd connection cannot be established, then returns error.
+func newEtcdBackend(ctx context.Context, cfg Config) (*db, error) {
+	cli, ctx, cancel, err := NewEtcdClient(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	backend := &db{
 		cfg:     cfg,
