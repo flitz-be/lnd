@@ -140,12 +140,16 @@ var _ walletdb.DB = (*db)(nil)
 func NewEtcdClient(ctx context.Context, cfg Config) (*clientv3.Client,
 	context.Context, func(), error) {
 
+	maxCallSize := DefaultMaxCallSize
+	if cfg.MaxCallSizeBytes != 0 {
+		maxCallSize = cfg.MaxCallSizeBytes
+	}
 	clientCfg := clientv3.Config{
 		Endpoints:          []string{cfg.Host},
 		DialTimeout:        etcdConnectionTimeout,
 		Username:           cfg.User,
 		Password:           cfg.Pass,
-		MaxCallSendMsgSize: DefaultMaxCallSize,
+		MaxCallSendMsgSize: maxCallSize,
 	}
 
 	if !cfg.DisableTLS {
