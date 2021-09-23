@@ -59,6 +59,17 @@ in `lnd`, saving developer time and limiting the potential for bugs.
 Instructions for enabling Postgres can be found in
 [docs/postgres.md](../postgres.md).
 
+### Data migration between backends
+
+A [data migration tool was
+added](https://github.com/lightningnetwork/lnd/pull/5561) for migrating `lnd`'s
+state between the local, file based `bbolt` database files and one of the two
+supported remote database backends (`etcd` or `postgres`).
+The new binary called `lndinit` is now available in all release builds
+(including the docker images) that contains the command `migrate-db`. Make sure
+you [read the data migration guide before using the migration
+tool](../data-migration.md).
+
 ## Protocol Extensions
 
 ### Explicit Channel Negotiation
