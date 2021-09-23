@@ -86,6 +86,6 @@ replace git.schwanenlied.me/yawning/bsaes.git => github.com/Yawning/bsaes v0.0.0
 // This replace is for https://github.com/advisories/GHSA-w73w-5m7g-f7qc
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
-// If you change this please also update .github/pull_request_template.md and
-// docs/INSTALL.md.
+// If you change this please also update .github/pull_request_template.md,
+// docs/INSTALL.md and cmd/lndinit/go.mod.
 go 1.15
