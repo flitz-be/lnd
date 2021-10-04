@@ -79,6 +79,8 @@ type NeutrinoNotifier struct {
 	// blockCache is an LRU block cache.
 	blockCache *blockcache.BlockCache
 
+	syncConsumer *chainntnfs.BlockConsumerCoordinator
+
 	wg   sync.WaitGroup
 	quit chan struct{}
 }
@@ -114,6 +116,8 @@ func New(node *neutrino.ChainService, spendHintCache chainntnfs.SpendHintCache,
 		confirmHintCache: confirmHintCache,
 
 		blockCache: blockCache,
+
+		syncConsumer: &chainntnfs.BlockConsumerCoordinator{},
 
 		quit: make(chan struct{}),
 	}
@@ -187,6 +191,7 @@ func (n *NeutrinoNotifier) startNotifier() error {
 	n.bestBlock.Hash = &startingPoint.Hash
 	n.bestBlock.Height = startingPoint.Height
 	n.bestBlock.BlockHeader = startingHeader
+	n.syncConsumer.NotifyNewHeight(&n.bestBlock)
 
 	n.txNotifier = chainntnfs.NewTxNotifier(
 		uint32(n.bestBlock.Height), chainntnfs.ReorgSafetyLimit,
@@ -669,6 +674,7 @@ func (n *NeutrinoNotifier) handleBlockConnected(newBlock *filteredBlock) error {
 	n.bestBlock.Hash = &newBlock.hash
 	n.bestBlock.Height = int32(newBlock.height)
 	n.bestBlock.BlockHeader = newBlock.header
+	n.syncConsumer.NotifyNewHeight(&n.bestBlock)
 
 	n.notifyBlockEpochs(
 		int32(newBlock.height), &newBlock.hash, newBlock.header,
@@ -703,6 +709,7 @@ func (n *NeutrinoNotifier) notifyBlockEpochs(newHeight int32, newSha *chainhash.
 	for _, client := range n.blockEpochClients {
 		n.notifyBlockEpochClient(client, newHeight, newSha, blockHeader)
 	}
+
 }
 
 // notifyBlockEpochClient sends a registered block epoch client a notification
@@ -1102,6 +1109,18 @@ func (n *NeutrinoNotifier) RegisterBlockEpochNtfn(
 			},
 		}, nil
 	}
+}
+
+func (n *NeutrinoNotifier) RegisterBlockConsumer(
+	cb func(*chainntnfs.BlockEpoch)) chainntnfs.BlockHeightSyncer {
+
+	return n.syncConsumer.RegisterConsumer(cb)
+}
+
+func (n *NeutrinoNotifier) UnregisterBlockConsumer(
+	consumer chainntnfs.BlockHeightSyncer) {
+
+	n.syncConsumer.RemoveConsumer(consumer)
 }
 
 // NeutrinoChainConn is a wrapper around neutrino's chain backend in order

@@ -64,6 +64,8 @@ type BitcoindNotifier struct {
 	// which the transaction could have confirmed within the chain.
 	confirmHintCache chainntnfs.ConfirmHintCache
 
+	syncConsumer *chainntnfs.BlockConsumerCoordinator
+
 	wg   sync.WaitGroup
 	quit chan struct{}
 }
@@ -92,6 +94,8 @@ func New(chainConn *chain.BitcoindConn, chainParams *chaincfg.Params,
 		confirmHintCache: confirmHintCache,
 
 		blockCache: blockCache,
+
+		syncConsumer: &chainntnfs.BlockConsumerCoordinator{},
 
 		quit: make(chan struct{}),
 	}
@@ -174,6 +178,7 @@ func (b *BitcoindNotifier) startNotifier() error {
 		Hash:        currentHash,
 		BlockHeader: blockHeader,
 	}
+	b.syncConsumer.NotifyNewHeight(&b.bestBlock)
 
 	b.wg.Add(1)
 	go b.notificationDispatcher()
@@ -598,6 +603,7 @@ func (b *BitcoindNotifier) handleBlockConnected(block chainntnfs.BlockEpoch) err
 	// doing so, we'll make sure update our in memory state in order to
 	// satisfy any client requests based upon the new block.
 	b.bestBlock = block
+	b.syncConsumer.NotifyNewHeight(&b.bestBlock)
 
 	b.notifyBlockEpochs(block.Height, block.Hash, block.BlockHeader)
 	return b.txNotifier.NotifyHeight(uint32(block.Height))
@@ -974,6 +980,18 @@ func (b *BitcoindNotifier) RegisterBlockEpochNtfn(
 			},
 		}, nil
 	}
+}
+
+func (b *BitcoindNotifier) RegisterBlockConsumer(
+	cb func(*chainntnfs.BlockEpoch)) chainntnfs.BlockHeightSyncer {
+
+	return b.syncConsumer.RegisterConsumer(cb)
+}
+
+func (b *BitcoindNotifier) UnregisterBlockConsumer(
+	consumer chainntnfs.BlockHeightSyncer) {
+
+	b.syncConsumer.RemoveConsumer(consumer)
 }
 
 // GetBlock is used to retrieve the block with the given hash. This function

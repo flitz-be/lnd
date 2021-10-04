@@ -86,6 +86,8 @@ type BtcdNotifier struct {
 	// which the transaction could have confirmed within the chain.
 	confirmHintCache chainntnfs.ConfirmHintCache
 
+	syncConsumer *chainntnfs.BlockConsumerCoordinator
+
 	wg   sync.WaitGroup
 	quit chan struct{}
 }
@@ -116,6 +118,8 @@ func New(config *rpcclient.ConnConfig, chainParams *chaincfg.Params,
 		confirmHintCache: confirmHintCache,
 
 		blockCache: blockCache,
+
+		syncConsumer: &chainntnfs.BlockConsumerCoordinator{},
 
 		quit: make(chan struct{}),
 	}
@@ -225,6 +229,7 @@ func (b *BtcdNotifier) startNotifier() error {
 		Hash:        currentHash,
 		BlockHeader: &bestBlock.Header,
 	}
+	b.syncConsumer.NotifyNewHeight(&b.bestBlock)
 
 	if err := b.chainConn.NotifyBlocks(); err != nil {
 		b.txUpdates.Stop()
@@ -667,6 +672,7 @@ func (b *BtcdNotifier) handleBlockConnected(epoch chainntnfs.BlockEpoch) error {
 	// doing so, we'll make sure update our in memory state in order to
 	// satisfy any client requests based upon the new block.
 	b.bestBlock = epoch
+	b.syncConsumer.NotifyNewHeight(&b.bestBlock)
 
 	b.notifyBlockEpochs(
 		epoch.Height, epoch.Hash, epoch.BlockHeader,
@@ -1040,6 +1046,18 @@ func (b *BtcdNotifier) RegisterBlockEpochNtfn(
 			},
 		}, nil
 	}
+}
+
+func (b *BtcdNotifier) RegisterBlockConsumer(
+	cb func(*chainntnfs.BlockEpoch)) chainntnfs.BlockHeightSyncer {
+
+	return b.syncConsumer.RegisterConsumer(cb)
+}
+
+func (b *BtcdNotifier) UnregisterBlockConsumer(
+	consumer chainntnfs.BlockHeightSyncer) {
+
+	b.syncConsumer.RemoveConsumer(consumer)
 }
 
 // GetBlock is used to retrieve the block with the given hash. This function

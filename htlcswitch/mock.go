@@ -181,9 +181,10 @@ func initSwitchWithDB(startingHeight uint32, db *channeldb.DB) (*Switch, error) 
 			return nil, nil
 		},
 		Notifier: &mock.ChainNotifier{
-			SpendChan: make(chan *chainntnfs.SpendDetail),
-			EpochChan: make(chan *chainntnfs.BlockEpoch),
-			ConfChan:  make(chan *chainntnfs.TxConfirmation),
+			SpendChan:     make(chan *chainntnfs.SpendDetail),
+			EpochChan:     make(chan *chainntnfs.BlockEpoch),
+			ConfChan:      make(chan *chainntnfs.TxConfirmation),
+			BlockConsumer: &chainntnfs.BlockConsumerCoordinator{},
 		},
 		FwdEventTicker: ticker.NewForce(DefaultFwdEventInterval),
 		LogEventTicker: ticker.NewForce(DefaultLogInterval),

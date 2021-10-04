@@ -282,9 +282,8 @@ type AuthenticatedGossiper struct {
 	stopped sync.Once
 
 	// bestHeight is the height of the block at the tip of the main chain
-	// as we know it. Accesses *MUST* be done with the gossiper's lock
-	// held.
-	bestHeight uint32
+	// as we know it.
+	bestHeightSync chainntnfs.BlockHeightSyncer
 
 	quit chan struct{}
 	wg   sync.WaitGroup
@@ -292,10 +291,6 @@ type AuthenticatedGossiper struct {
 	// cfg is a copy of the configuration struct that the gossiper service
 	// was initialized with.
 	cfg *Config
-
-	// blockEpochs encapsulates a stream of block epochs that are sent at
-	// every new block height.
-	blockEpochs *chainntnfs.BlockEpochEvent
 
 	// prematureChannelUpdates is a map of ChannelUpdates we have received
 	// that wasn't associated with any channel we know about.  We store
@@ -438,17 +433,12 @@ func (d *AuthenticatedGossiper) start() error {
 	// First we register for new notifications of newly discovered blocks.
 	// We do this immediately so we'll later be able to consume any/all
 	// blocks which were discovered.
-	blockEpochs, err := d.cfg.Notifier.RegisterBlockEpochNtfn(nil)
-	if err != nil {
-		return err
-	}
-	d.blockEpochs = blockEpochs
-
-	height, err := d.cfg.Router.CurrentBlockHeight()
-	if err != nil {
-		return err
-	}
-	d.bestHeight = height
+	d.bestHeightSync = d.cfg.Notifier.RegisterBlockConsumer(
+		func(e *chainntnfs.BlockEpoch) {
+			log.Debugf("New block: height=%d, hash=%s", e.Height,
+				e.Hash)
+		},
+	)
 
 	// Start the reliable sender. In case we had any pending messages ready
 	// to be sent when the gossiper was last shut down, we must continue on
@@ -477,7 +467,7 @@ func (d *AuthenticatedGossiper) Stop() error {
 func (d *AuthenticatedGossiper) stop() {
 	log.Info("Authenticated Gossiper is stopping")
 
-	d.blockEpochs.Cancel()
+	d.cfg.Notifier.UnregisterBlockConsumer(d.bestHeightSync)
 
 	d.syncMgr.Stop()
 
@@ -1078,25 +1068,6 @@ func (d *AuthenticatedGossiper) networkHandler() {
 
 			}()
 
-		// A new block has arrived, so we can re-process the previously
-		// premature announcements.
-		case newBlock, ok := <-d.blockEpochs.Epochs:
-			// If the channel has been closed, then this indicates
-			// the daemon is shutting down, so we exit ourselves.
-			if !ok {
-				return
-			}
-
-			// Once a new block arrives, we update our running
-			// track of the height of the chain tip.
-			d.Lock()
-			blockHeight := uint32(newBlock.Height)
-			d.bestHeight = blockHeight
-			d.Unlock()
-
-			log.Debugf("New block: height=%d, hash=%s", blockHeight,
-				newBlock.Hash)
-
 		// The trickle timer has ticked, which indicates we should
 		// flush to the network the pending batch of new announcements
 		// we've received since the last trickle tick.
@@ -1531,10 +1502,12 @@ func (d *AuthenticatedGossiper) addNode(msg *lnwire.NodeAnnouncement,
 func (d *AuthenticatedGossiper) processNetworkAnnouncement(
 	nMsg *networkMsg) ([]networkMsg, bool) {
 
-	isPremature := func(chanID lnwire.ShortChannelID, delta uint32) bool {
+	isPremature := func(bestHeight uint32, chanID lnwire.ShortChannelID,
+		delta uint32) bool {
+
 		// TODO(roasbeef) make height delta 6
 		//  * or configurable
-		return chanID.BlockHeight+delta > d.bestHeight
+		return chanID.BlockHeight+delta > bestHeight
 	}
 
 	// If this is a remote update, we set the scheduler option to lazily
@@ -1626,19 +1599,17 @@ func (d *AuthenticatedGossiper) processNetworkAnnouncement(
 
 		// If the advertised inclusionary block is beyond our knowledge
 		// of the chain tip, then we'll ignore for it now.
-		d.Lock()
-		if nMsg.isRemote && isPremature(msg.ShortChannelID, 0) {
+		bestHeight := d.bestHeightSync.BestBlockHeight()
+		if nMsg.isRemote && isPremature(bestHeight, msg.ShortChannelID, 0) {
 			log.Infof("Announcement for chan_id=(%v), is "+
 				"premature: advertises height %v, only "+
 				"height %v is known",
 				msg.ShortChannelID.ToUint64(),
 				msg.ShortChannelID.BlockHeight,
-				d.bestHeight)
-			d.Unlock()
+				bestHeight)
 			nMsg.err <- nil
 			return nil, false
 		}
-		d.Unlock()
 
 		// At this point, we'll now ask the router if this is a
 		// zombie/known edge. If so we can skip all the processing
@@ -1851,18 +1822,16 @@ func (d *AuthenticatedGossiper) processNetworkAnnouncement(
 		// If the advertised inclusionary block is beyond our knowledge
 		// of the chain tip, then we'll put the announcement in limbo
 		// to be fully verified once we advance forward in the chain.
-		d.Lock()
-		if nMsg.isRemote && isPremature(msg.ShortChannelID, 0) {
+		bestHeight := d.bestHeightSync.BestBlockHeight()
+		if nMsg.isRemote && isPremature(bestHeight, msg.ShortChannelID, 0) {
 			log.Infof("Update announcement for "+
 				"short_chan_id(%v), is premature: advertises "+
 				"height %v, only height %v is known",
 				shortChanID, blockHeight,
-				d.bestHeight)
-			d.Unlock()
+				bestHeight)
 			nMsg.err <- nil
 			return nil, false
 		}
-		d.Unlock()
 
 		// Before we perform any of the expensive checks below, we'll
 		// check whether this update is stale or is for a zombie
@@ -2120,16 +2089,14 @@ func (d *AuthenticatedGossiper) processNetworkAnnouncement(
 		// sent after some number of confirmations after channel was
 		// registered in bitcoin blockchain. Therefore, we check if the
 		// proof is premature.
-		d.Lock()
-		if isPremature(msg.ShortChannelID, d.cfg.ProofMatureDelta) {
+		bestHeight := d.bestHeightSync.BestBlockHeight()
+		if isPremature(bestHeight, msg.ShortChannelID, d.cfg.ProofMatureDelta) {
 			log.Infof("Premature proof announcement, current "+
 				"block height lower than needed: %v < %v",
-				d.bestHeight, needBlockHeight)
-			d.Unlock()
+				bestHeight, needBlockHeight)
 			nMsg.err <- nil
 			return nil, false
 		}
-		d.Unlock()
 
 		// Ensure that we know of a channel with the target channel ID
 		// before proceeding further.
@@ -2690,7 +2657,9 @@ func IsKeepAliveUpdate(update *lnwire.ChannelUpdate,
 
 // latestHeight returns the gossiper's latest height known of the chain.
 func (d *AuthenticatedGossiper) latestHeight() uint32 {
-	d.Lock()
-	defer d.Unlock()
-	return d.bestHeight
+	if d.bestHeightSync == nil {
+		return 0
+	}
+
+	return d.bestHeightSync.BestBlockHeight()
 }

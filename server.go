@@ -905,7 +905,6 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 	})
 
 	s.utxoNursery = contractcourt.NewUtxoNursery(&contractcourt.NurseryConfig{
-		ChainIO:             cc.ChainIO,
 		ConfDepth:           1,
 		FetchClosedChannels: s.chanStateDB.FetchClosedChannels,
 		FetchClosedChannel:  s.chanStateDB.FetchClosedChannel,

@@ -9,9 +9,22 @@ import (
 
 // ChainNotifier is a mock implementation of the ChainNotifier interface.
 type ChainNotifier struct {
-	SpendChan chan *chainntnfs.SpendDetail
-	EpochChan chan *chainntnfs.BlockEpoch
-	ConfChan  chan *chainntnfs.TxConfirmation
+	SpendChan     chan *chainntnfs.SpendDetail
+	EpochChan     chan *chainntnfs.BlockEpoch
+	ConfChan      chan *chainntnfs.TxConfirmation
+	BlockConsumer *chainntnfs.BlockConsumerCoordinator
+}
+
+func (c *ChainNotifier) RegisterBlockConsumer(
+	cb func(*chainntnfs.BlockEpoch)) chainntnfs.BlockHeightSyncer {
+
+	return c.BlockConsumer.RegisterConsumer(cb)
+}
+
+func (c *ChainNotifier) UnregisterBlockConsumer(
+	syncer chainntnfs.BlockHeightSyncer) {
+
+	c.BlockConsumer.RemoveConsumer(syncer)
 }
 
 // RegisterConfirmationsNtfn returns a ConfirmationEvent that contains a channel

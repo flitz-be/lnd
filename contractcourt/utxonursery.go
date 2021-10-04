@@ -169,10 +169,6 @@ var (
 // NurseryConfig abstracts the required subsystems used by the utxo nursery. An
 // instance of NurseryConfig is passed to newUtxoNursery during instantiation.
 type NurseryConfig struct {
-	// ChainIO is used by the utxo nursery to determine the current block
-	// height, which drives the incubation of the nursery's outputs.
-	ChainIO lnwallet.BlockChainIO
-
 	// ConfDepth is the number of blocks the nursery store waits before
 	// determining outputs in the chain as confirmed.
 	ConfDepth uint32
@@ -218,8 +214,8 @@ type UtxoNursery struct {
 
 	cfg *NurseryConfig
 
-	mu         sync.Mutex
-	bestHeight uint32
+	mu             sync.Mutex
+	bestHeightSync chainntnfs.BlockHeightSyncer
 
 	quit chan struct{}
 	wg   sync.WaitGroup
@@ -243,15 +239,9 @@ func (u *UtxoNursery) Start() error {
 
 	utxnLog.Tracef("Starting UTXO nursery")
 
-	// Retrieve the currently best known block. This is needed to have the
-	// state machine catch up with the blocks we missed when we were down.
-	bestHash, bestHeight, err := u.cfg.ChainIO.GetBestBlock()
-	if err != nil {
-		return err
-	}
-
-	// Set best known height to schedule late registrations properly.
-	atomic.StoreUint32(&u.bestHeight, uint32(bestHeight))
+	// 1. Register our incubator function as one of the synchronous
+	// consumers of the current block height.
+	u.bestHeightSync = u.cfg.Notifier.RegisterBlockConsumer(u.incubator)
 
 	// 2. Flush all fully-graduated channels from the pipeline.
 
@@ -288,24 +278,11 @@ func (u *UtxoNursery) Start() error {
 
 	// 3. Replay all crib and kindergarten outputs up to the current best
 	// height.
-	if err := u.reloadClasses(uint32(bestHeight)); err != nil {
+	bestHeight := u.bestHeightSync.BestBlockHeight()
+	if err := u.reloadClasses(bestHeight); err != nil {
 		close(u.quit)
 		return err
 	}
-
-	// Start watching for new blocks, as this will drive the nursery store's
-	// state machine.
-	newBlockChan, err := u.cfg.Notifier.RegisterBlockEpochNtfn(&chainntnfs.BlockEpoch{
-		Height: bestHeight,
-		Hash:   bestHash,
-	})
-	if err != nil {
-		close(u.quit)
-		return err
-	}
-
-	u.wg.Add(1)
-	go u.incubator(newBlockChan)
 
 	return nil
 }
@@ -318,6 +295,8 @@ func (u *UtxoNursery) Stop() error {
 	}
 
 	utxnLog.Infof("UTXO nursery shutting down")
+
+	u.cfg.Notifier.UnregisterBlockConsumer(u.bestHeightSync)
 
 	close(u.quit)
 	u.wg.Wait()
@@ -428,17 +407,14 @@ func (u *UtxoNursery) IncubateOutputs(chanPoint wire.OutPoint,
 	// As an intermediate step, we'll now check to see if any of the baby
 	// outputs has actually _already_ expired. This may be the case if
 	// blocks were mined while we processed this message.
-	_, bestHeight, err := u.cfg.ChainIO.GetBestBlock()
-	if err != nil {
-		return err
-	}
+	bestHeight := u.bestHeightSync.BestBlockHeight()
 
 	// We'll examine all the baby outputs just inserted into the database,
 	// if the output has already expired, then we'll *immediately* sweep
 	// it. This may happen if the caller raced a block to call this method.
 	for i, babyOutput := range babyOutputs {
-		if uint32(bestHeight) >= babyOutput.expiry {
-			err = u.sweepCribOutput(
+		if bestHeight >= babyOutput.expiry {
+			err := u.sweepCribOutput(
 				babyOutput.expiry, &babyOutputs[i],
 			)
 			if err != nil {
@@ -674,47 +650,23 @@ func (u *UtxoNursery) reloadClasses(bestHeight uint32) error {
 // confirmation of these spends will either 1) move a crib output into the
 // kindergarten bucket or 2) move a kindergarten output into the graduated
 // bucket.
-func (u *UtxoNursery) incubator(newBlockChan *chainntnfs.BlockEpochEvent) {
-	defer u.wg.Done()
-	defer newBlockChan.Cancel()
+func (u *UtxoNursery) incubator(epoch *chainntnfs.BlockEpoch) {
+	// TODO(roasbeef): if the BlockChainIO is rescanning
+	// will give stale data
 
-	for {
-		select {
-		case epoch, ok := <-newBlockChan.Epochs:
-			// If the epoch channel has been closed, then the
-			// ChainNotifier is exiting which means the daemon is
-			// as well. Therefore, we exit early also in order to
-			// ensure the daemon shuts down gracefully, yet
-			// swiftly.
-			if !ok {
-				return
-			}
+	// A new block has just been connected to the main
+	// chain, which means we might be able to graduate crib
+	// or kindergarten outputs at this height. This involves
+	// broadcasting any presigned htlc timeout txns, as well
+	// as signing and broadcasting a sweep txn that spends
+	// from all kindergarten outputs at this height.
+	height := uint32(epoch.Height)
 
-			// TODO(roasbeef): if the BlockChainIO is rescanning
-			// will give stale data
+	if err := u.graduateClass(height); err != nil {
+		utxnLog.Errorf("error while graduating "+
+			"class at height=%d: %v", height, err)
 
-			// A new block has just been connected to the main
-			// chain, which means we might be able to graduate crib
-			// or kindergarten outputs at this height. This involves
-			// broadcasting any presigned htlc timeout txns, as well
-			// as signing and broadcasting a sweep txn that spends
-			// from all kindergarten outputs at this height.
-			height := uint32(epoch.Height)
-
-			// Update best known block height for late registrations
-			// to be scheduled properly.
-			atomic.StoreUint32(&u.bestHeight, height)
-
-			if err := u.graduateClass(height); err != nil {
-				utxnLog.Errorf("error while graduating "+
-					"class at height=%d: %v", height, err)
-
-				// TODO(conner): signal fatal error to daemon
-			}
-
-		case <-u.quit:
-			return
-		}
+		// TODO(conner): signal fatal error to daemon
 	}
 }
 
@@ -1020,7 +972,7 @@ func (u *UtxoNursery) waitForPreschoolConf(kid *kidOutput,
 		outputType = "Commitment"
 	}
 
-	bestHeight := atomic.LoadUint32(&u.bestHeight)
+	bestHeight := u.bestHeightSync.BestBlockHeight()
 	err := u.cfg.Store.PreschoolToKinder(kid, bestHeight)
 	if err != nil {
 		utxnLog.Errorf("Unable to move %v output "+
