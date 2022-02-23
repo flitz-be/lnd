@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/lightningnetwork/lnd/input"
 )
 
 // Sig is a fixed-sized ECDSA signature. Unlike Bitcoin, we use fixed sized
 // signatures on the wire, instead of DER encoded signatures. This type
 // provides several methods to convert to/from a regular Bitcoin DER encoded
-// signature (raw bytes and *btcec.Signature).
+// signature (raw bytes and *ecdsa.Signature).
 type Sig [64]byte
 
 var (
@@ -103,7 +103,7 @@ func NewSigFromRawSignature(sig []byte) (Sig, error) {
 }
 
 // NewSigFromSignature creates a new signature as used on the wire, from an
-// existing btcec.Signature.
+// existing ecdsa.Signature.
 func NewSigFromSignature(e input.Signature) (Sig, error) {
 	if e == nil {
 		return Sig{}, fmt.Errorf("cannot decode empty signature")
@@ -111,7 +111,7 @@ func NewSigFromSignature(e input.Signature) (Sig, error) {
 
 	// Nil is still a valid interface, apparently. So we need a more
 	// explicit check here.
-	if ecsig, ok := e.(*btcec.Signature); ok && ecsig == nil {
+	if ecsig, ok := e.(*ecdsa.Signature); ok && ecsig == nil {
 		return Sig{}, fmt.Errorf("cannot decode empty signature")
 	}
 
@@ -119,12 +119,12 @@ func NewSigFromSignature(e input.Signature) (Sig, error) {
 	return NewSigFromRawSignature(e.Serialize())
 }
 
-// ToSignature converts the fixed-sized signature to a btcec.Signature objects
+// ToSignature converts the fixed-sized signature to a ecdsa.Signature objects
 // which can be used for signature validation checks.
-func (b *Sig) ToSignature() (*btcec.Signature, error) {
+func (b *Sig) ToSignature() (*ecdsa.Signature, error) {
 	// Parse the signature with strict checks.
 	sigBytes := b.ToSignatureBytes()
-	sig, err := btcec.ParseDERSignature(sigBytes, btcec.S256())
+	sig, err := ecdsa.ParseDERSignature(sigBytes)
 	if err != nil {
 		return nil, err
 	}

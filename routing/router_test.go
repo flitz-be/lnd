@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -233,8 +234,7 @@ func signErrChanUpdate(t *testing.T, key *btcec.PrivateKey,
 	require.NoError(t, err, "failed to retrieve data to sign")
 
 	digest := chainhash.DoubleHashB(chanUpdateMsg)
-	sig, err := key.Sign(digest)
-	require.NoError(t, err, "failed to sign msg")
+	sig := ecdsa.Sign(key, digest)
 
 	errChanUpdate.Signature, err = lnwire.NewSigFromSignature(sig)
 	require.NoError(t, err, "failed to create new signature")
@@ -630,7 +630,7 @@ func TestSendPaymentErrorFeeInsufficientPrivateEdge(t *testing.T) {
 		sgNode           = ctx.aliases["songoku"]
 	)
 
-	sgNodeID, err := btcec.ParsePubKey(sgNode[:], btcec.S256())
+	sgNodeID, err := btcec.ParsePubKey(sgNode[:])
 	require.NoError(t, err)
 
 	// Craft a LightningPayment struct that'll send a payment from roasbeef
@@ -764,7 +764,7 @@ func TestSendPaymentPrivateEdgeUpdateFeeExceedsLimit(t *testing.T) {
 		feeLimit         = lnwire.MilliSatoshi(500000)
 	)
 
-	sgNodeID, err := btcec.ParsePubKey(sgNode[:], btcec.S256())
+	sgNodeID, err := btcec.ParsePubKey(sgNode[:])
 	require.NoError(t, err)
 
 	// Craft a LightningPayment struct that'll send a payment from roasbeef
@@ -1440,7 +1440,7 @@ func TestAddEdgeUnknownVertexes(t *testing.T) {
 
 	// We will connect node 1 to "sophon"
 	connectNode := ctx.aliases["sophon"]
-	connectNodeKey, err := btcec.ParsePubKey(connectNode[:], btcec.S256())
+	connectNodeKey, err := btcec.ParsePubKey(connectNode[:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2719,7 +2719,7 @@ func TestIsStaleEdgePolicy(t *testing.T) {
 func TestEmptyRoutesGenerateSphinxPacket(t *testing.T) {
 	t.Parallel()
 
-	sessionKey, _ := btcec.NewPrivateKey(btcec.S256())
+	sessionKey, _ := btcec.NewPrivateKey()
 	emptyRoute := &route.Route{}
 	_, _, err := generateSphinxPacket(emptyRoute, testHash[:], sessionKey)
 	if err != route.ErrNoRouteHopsProvided {

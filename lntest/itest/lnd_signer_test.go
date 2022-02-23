@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	"github.com/lightningnetwork/lnd/keychain"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/signrpc"
@@ -34,7 +34,7 @@ func runDeriveSharedKey(t *harnessTest, alice *lntest.HarnessNode) {
 
 	// Create an ephemeral key, extracts its public key, and make a
 	// PrivKeyECDH using the ephemeral key.
-	ephemeralPriv, err := btcec.NewPrivateKey(btcec.S256())
+	ephemeralPriv, err := btcec.NewPrivateKey()
 	require.NoError(t.t, err, "failed to create ephemeral key")
 
 	ephemeralPubBytes := ephemeralPriv.PubKey().SerializeCompressed()
@@ -56,7 +56,7 @@ func runDeriveSharedKey(t *harnessTest, alice *lntest.HarnessNode) {
 		)
 	}
 
-	nodePub, err := btcec.ParsePubKey(alice.PubKey[:], btcec.S256())
+	nodePub, err := btcec.ParsePubKey(alice.PubKey[:])
 	require.NoError(t.t, err, "failed to parse node pubkey")
 
 	customizedKeyFamily := int32(keychain.KeyFamilyMultiSig)
@@ -222,7 +222,7 @@ func runSignOutputRaw(t *harnessTest, net *lntest.NetworkHarness,
 	require.NoError(t.t, err)
 	require.Equal(t.t, int32(0), keyDesc.KeyLoc.KeyIndex)
 
-	targetPubKey, err := btcec.ParsePubKey(keyDesc.RawKeyBytes, btcec.S256())
+	targetPubKey, err := btcec.ParsePubKey(keyDesc.RawKeyBytes)
 	require.NoError(t.t, err)
 
 	// First, try with a key descriptor that only sets the public key.
@@ -254,7 +254,7 @@ func runSignOutputRaw(t *harnessTest, net *lntest.NetworkHarness,
 	require.NoError(t.t, err)
 	require.Equal(t.t, int32(1), keyDesc.KeyLoc.KeyIndex)
 
-	targetPubKey, err = btcec.ParsePubKey(keyDesc.RawKeyBytes, btcec.S256())
+	targetPubKey, err = btcec.ParsePubKey(keyDesc.RawKeyBytes)
 	require.NoError(t.t, err)
 
 	// First, try with a key descriptor that only sets the public key.
@@ -405,7 +405,7 @@ func deriveCustomizedKey(ctx context.Context, node *lntest.HarnessNode,
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive key: %v", err)
 	}
-	pub, err := btcec.ParsePubKey(resp.RawKeyBytes, btcec.S256())
+	pub, err := btcec.ParsePubKey(resp.RawKeyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse node pubkey: %v", err)
 	}
