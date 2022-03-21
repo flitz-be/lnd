@@ -1,6 +1,8 @@
 module github.com/lightningnetwork/lnd
 
 require (
+	git.schwanenlied.me/yawning/bsaes.git v0.0.0-00010101000000-000000000000 // indirect
+	github.com/NebulousLabs/fastrand v0.0.0-20181203155948-6fb6489aac4e // indirect
 	github.com/NebulousLabs/go-upnp v0.0.0-20180202185039-29b680b06c82
 	github.com/Yawning/aez v0.0.0-20180114000226-4dad034d9db2
 	github.com/btcsuite/btcd v0.22.0-beta.0.20220207191057-4dc4ff7963b4
@@ -17,7 +19,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/dvyukov/go-fuzz v0.0.0-20210602112143-b1f3d6f4ef4e
+	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/go-errors/errors v1.0.1
+	github.com/go-openapi/strfmt v0.21.2 // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/golangci/golangci-lint v1.18.0
 	github.com/gorilla/websocket v1.4.2
@@ -30,22 +34,25 @@ require (
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/logrotate v1.0.0
+	github.com/juju/testing v0.0.0-20220203020004-a0ff61f03494 // indirect
 	github.com/kkdai/bstream v1.0.0
 	github.com/lightninglabs/neutrino v0.13.2
 	github.com/lightninglabs/protobuf-hex-display v1.4.3-hex-display
 	github.com/lightningnetwork/lightning-onion v1.0.2-0.20220211021909-bb84a1ccb0c5
 	github.com/lightningnetwork/lnd/cert v1.1.0
 	github.com/lightningnetwork/lnd/clock v1.1.0
-	github.com/lightningnetwork/lnd/healthcheck v1.2.0
-	github.com/lightningnetwork/lnd/kvdb v1.3.0
+	github.com/lightningnetwork/lnd/healthcheck v1.2.2
+	github.com/lightningnetwork/lnd/kvdb v1.3.1
 	github.com/lightningnetwork/lnd/queue v1.1.0
 	github.com/lightningnetwork/lnd/ticker v1.1.0
 	github.com/lightningnetwork/lnd/tlv v1.0.2
 	github.com/lightningnetwork/lnd/tor v1.0.0
 	github.com/ltcsuite/ltcd v0.0.0-20190101042124-f37f8bf35796
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/miekg/dns v1.1.43
 	github.com/ory/go-acc v0.2.6
 	github.com/prometheus/client_golang v1.11.0
+	github.com/stephens2424/writerset v1.0.2 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/tv42/zbase32 v0.0.0-20160707012821-501572607d02
 	github.com/urfave/cli v1.20.0
@@ -59,26 +66,26 @@ require (
 	golang.org/x/tools v0.1.7
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
+	gopkg.in/errgo.v1 v1.0.1 // indirect
 	gopkg.in/macaroon-bakery.v2 v2.0.1
 	gopkg.in/macaroon.v2 v2.0.0
 )
 
-replace github.com/lightningnetwork/lnd/ticker => ./ticker
-
-replace github.com/lightningnetwork/lnd/queue => ./queue
-
-replace github.com/lightningnetwork/lnd/cert => ./cert
-
-replace github.com/lightningnetwork/lnd/clock => ./clock
-
-replace github.com/lightningnetwork/lnd/healthcheck => ./healthcheck
-
-replace github.com/lightningnetwork/lnd/kvdb => ./kvdb
-
-replace github.com/lightningnetwork/lnd/tlv => ./tlv
+replace (
+	// TODO(guggero): Remove these after merging #6285 and pushing the new tags!
+	github.com/lightningnetwork/lnd/cert => ./cert
+	github.com/lightningnetwork/lnd/clock => ./clock
+	github.com/lightningnetwork/lnd/kvdb => ./kvdb
+	github.com/lightningnetwork/lnd/queue => ./queue
+	github.com/lightningnetwork/lnd/ticker => ./ticker
+	github.com/lightningnetwork/lnd/tlv => ./tlv
+)
 
 // TODO(guggero): Remove these after merging #6350 and pushing the new tag!
-replace github.com/lightningnetwork/lnd/tor => ./tor
+replace (
+	github.com/lightningnetwork/lnd/healthcheck => ./healthcheck
+	github.com/lightningnetwork/lnd/tor => ./tor
+)
 
 // This replace is for addressing the CVE https://github.com/advisories/GHSA-f6mq-5m25-4r72
 // This is a indirect dependency that cannot be upgraded directly.
