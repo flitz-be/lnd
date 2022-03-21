@@ -40,7 +40,8 @@ require (
 	github.com/lightningnetwork/lnd/kvdb v1.3.0
 	github.com/lightningnetwork/lnd/queue v1.1.0
 	github.com/lightningnetwork/lnd/ticker v1.1.0
-	github.com/lightningnetwork/lnd/tlv v1.0.1
+	github.com/lightningnetwork/lnd/tlv v1.0.2
+	github.com/lightningnetwork/lnd/tor v1.0.0
 	github.com/ltcsuite/ltcd v0.0.0-20190101042124-f37f8bf35796
 	github.com/miekg/dns v1.1.43
 	github.com/ory/go-acc v0.2.6
@@ -51,7 +52,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.0
 	go.etcd.io/etcd/client/v3 v3.5.0
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/net v0.0.0-20210913180222-943fd674d43e
+	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
@@ -75,6 +76,9 @@ replace github.com/lightningnetwork/lnd/healthcheck => ./healthcheck
 replace github.com/lightningnetwork/lnd/kvdb => ./kvdb
 
 replace github.com/lightningnetwork/lnd/tlv => ./tlv
+
+// TODO(guggero): Remove these after merging #6350 and pushing the new tag!
+replace github.com/lightningnetwork/lnd/tor => ./tor
 
 // This replace is for addressing the CVE https://github.com/advisories/GHSA-f6mq-5m25-4r72
 // This is a indirect dependency that cannot be upgraded directly.
