@@ -71,9 +71,6 @@ require (
 	gopkg.in/macaroon.v2 v2.0.0
 )
 
-// TODO(guggero): Remove these after merging #6350 and pushing the new tag!
-replace github.com/lightningnetwork/lnd/healthcheck => ./healthcheck
-
 // This replace is for addressing the CVE https://github.com/advisories/GHSA-f6mq-5m25-4r72
 // This is a indirect dependency that cannot be upgraded directly.
 replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
