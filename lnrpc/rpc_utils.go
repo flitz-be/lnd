@@ -3,10 +3,13 @@ package lnrpc
 import (
 	"encoding/hex"
 	"errors"
-	"sort"
-
+	"fmt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/lightningnetwork/lnd/lnwallet"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -122,4 +125,44 @@ func GetChanPointFundingTxid(chanPoint *ChannelPoint) (*chainhash.Hash, error) {
 	}
 
 	return chainhash.NewHash(txid)
+}
+
+// NewProtoOutPoint parses an OutPoint into its corresponding lnrpc.OutPoint
+// type.
+func NewProtoOutPoint(op string) (*OutPoint, error) {
+	parts := strings.Split(op, ":")
+	if len(parts) != 2 {
+		return nil, errors.New("outpoint should be of the form " +
+			"txid:index")
+	}
+	txid := parts[0]
+	if hex.DecodedLen(len(txid)) != chainhash.HashSize {
+		return nil, fmt.Errorf("invalid hex-encoded txid %v", txid)
+	}
+	outputIndex, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid output index: %v", err)
+	}
+	return &OutPoint{
+		TxidStr:     txid,
+		OutputIndex: uint32(outputIndex),
+	}, nil
+}
+
+// NewWireOutPoint parses an OutPoint into its corresponding wire.OutPoint type.
+func NewWireOutPoint(op string) (*wire.OutPoint, error) {
+	rpcOp, err := NewProtoOutPoint(op)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := chainhash.NewHashFromStr(rpcOp.TxidStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &wire.OutPoint{
+		Hash:  *hash,
+		Index: rpcOp.OutputIndex,
+	}, nil
 }

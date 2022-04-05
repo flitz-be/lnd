@@ -765,7 +765,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 	// the network.
 	//
 	// We'll start by parsing the node color from configuration.
-	color, err := lncfg.ParseHexColor(cfg.Color)
+	color, err := lnrpc.ParseHexColor(cfg.Color)
 	if err != nil {
 		srvrLog.Errorf("unable to parse color: %v\n", err)
 		return nil, err

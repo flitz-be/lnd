@@ -5,23 +5,12 @@ package devrpc
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
-	"strconv"
-	"strings"
-	"sync/atomic"
-	"time"
-
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/lightningnetwork/lnd/channeldb"
-	"github.com/lightningnetwork/lnd/lncfg"
 	"github.com/lightningnetwork/lnd/lnrpc"
-	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/lightningnetwork/lnd/routing"
 	"google.golang.org/grpc"
 	"gopkg.in/macaroon-bakery.v2/bakery"
+	"sync/atomic"
 )
 
 const (
@@ -171,40 +160,6 @@ func (r *ServerShell) CreateSubServer(configRegistry lnrpc.SubServerConfigDispat
 	return subServer, macPermissions, nil
 }
 
-func parseOutPoint(s string) (*wire.OutPoint, error) {
-	split := strings.Split(s, ":")
-	if len(split) != 2 {
-		return nil, fmt.Errorf("expecting outpoint to be in format of: " +
-			"txid:index")
-	}
-
-	index, err := strconv.ParseInt(split[1], 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("unable to decode output index: %v", err)
-	}
-
-	txid, err := chainhash.NewHashFromStr(split[0])
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse hex string: %v", err)
-	}
-
-	return &wire.OutPoint{
-		Hash:  *txid,
-		Index: uint32(index),
-	}, nil
-}
-
-func parsePubKey(pubKeyStr string) ([33]byte, error) {
-	var pubKey [33]byte
-	pubKeyBytes, err := hex.DecodeString(pubKeyStr)
-	if err != nil || len(pubKeyBytes) != 33 {
-		return pubKey, fmt.Errorf("invalid pubkey: %v", pubKeyStr)
-	}
-
-	copy(pubKey[:], pubKeyBytes)
-	return pubKey, nil
-}
-
 // ImportGraph imports a graph dump (without auth proofs).
 //
 // NOTE: Part of the DevServer interface.
@@ -212,130 +167,11 @@ func (s *Server) ImportGraph(ctx context.Context,
 	graph *lnrpc.ChannelGraph) (*ImportGraphResponse, error) {
 
 	// Obtain the pointer to the global singleton channel graph.
-	graphDB := s.cfg.GraphDB
-
-	var err error
-	for _, rpcNode := range graph.Nodes {
-		node := &channeldb.LightningNode{
-			HaveNodeAnnouncement: true,
-			LastUpdate: time.Unix(
-				int64(rpcNode.LastUpdate), 0,
-			),
-			Alias: rpcNode.Alias,
-		}
-
-		node.PubKeyBytes, err = parsePubKey(rpcNode.PubKey)
-		if err != nil {
-			return nil, err
-		}
-
-		featureBits := make([]lnwire.FeatureBit, 0, len(rpcNode.Features))
-		featureNames := make(map[lnwire.FeatureBit]string)
-
-		for featureBit, feature := range rpcNode.Features {
-			featureBits = append(
-				featureBits, lnwire.FeatureBit(featureBit),
-			)
-
-			featureNames[lnwire.FeatureBit(featureBit)] = feature.Name
-		}
-
-		featureVector := lnwire.NewRawFeatureVector(featureBits...)
-		node.Features = lnwire.NewFeatureVector(
-			featureVector, featureNames,
-		)
-
-		node.Color, err = lncfg.ParseHexColor(rpcNode.Color)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := graphDB.AddLightningNode(node); err != nil {
-			return nil, fmt.Errorf("unable to add node %v: %v",
-				rpcNode.PubKey, err)
-		}
-
-		log.Debugf("Imported node: %v", rpcNode.PubKey)
-	}
-
-	for _, rpcEdge := range graph.Edges {
-		rpcEdge := rpcEdge
-
-		edge := &channeldb.ChannelEdgeInfo{
-			ChannelID: rpcEdge.ChannelId,
-			ChainHash: *s.cfg.ActiveNetParams.GenesisHash,
-			Capacity:  btcutil.Amount(rpcEdge.Capacity),
-		}
-
-		edge.NodeKey1Bytes, err = parsePubKey(rpcEdge.Node1Pub)
-		if err != nil {
-			return nil, err
-		}
-
-		edge.NodeKey2Bytes, err = parsePubKey(rpcEdge.Node2Pub)
-		if err != nil {
-			return nil, err
-		}
-
-		channelPoint, err := parseOutPoint(rpcEdge.ChanPoint)
-		if err != nil {
-			return nil, err
-		}
-		edge.ChannelPoint = *channelPoint
-
-		if err := graphDB.AddChannelEdge(edge); err != nil {
-			return nil, fmt.Errorf("unable to add edge %v: %v",
-				rpcEdge.ChanPoint, err)
-		}
-
-		makePolicy := func(rpcPolicy *lnrpc.RoutingPolicy) *channeldb.ChannelEdgePolicy {
-			policy := &channeldb.ChannelEdgePolicy{
-				ChannelID: rpcEdge.ChannelId,
-				LastUpdate: time.Unix(
-					int64(rpcPolicy.LastUpdate), 0,
-				),
-				TimeLockDelta: uint16(
-					rpcPolicy.TimeLockDelta,
-				),
-				MinHTLC: lnwire.MilliSatoshi(
-					rpcPolicy.MinHtlc,
-				),
-				FeeBaseMSat: lnwire.MilliSatoshi(
-					rpcPolicy.FeeBaseMsat,
-				),
-				FeeProportionalMillionths: lnwire.MilliSatoshi(
-					rpcPolicy.FeeRateMilliMsat,
-				),
-			}
-			if rpcPolicy.MaxHtlcMsat > 0 {
-				policy.MaxHTLC = lnwire.MilliSatoshi(
-					rpcPolicy.MaxHtlcMsat,
-				)
-				policy.MessageFlags |= lnwire.ChanUpdateOptionMaxHtlc
-			}
-
-			return policy
-		}
-
-		if rpcEdge.Node1Policy != nil {
-			policy := makePolicy(rpcEdge.Node1Policy)
-			policy.ChannelFlags = 0
-			if err := graphDB.UpdateEdgePolicy(policy); err != nil {
-				return nil, fmt.Errorf(
-					"unable to update policy: %v", err)
-			}
-		}
-
-		if rpcEdge.Node2Policy != nil {
-			policy := makePolicy(rpcEdge.Node2Policy)
-			policy.ChannelFlags = 1
-			if err := graphDB.UpdateEdgePolicy(policy); err != nil {
-				return nil, fmt.Errorf(
-					"unable to update policy: %v", err)
-			}
-		}
-
-		log.Debugf("Added edge: %v", rpcEdge.ChannelId)
+	err := routing.ImportGraphData(
+		graph, s.cfg.GraphDB, *s.cfg.ActiveNetParams.GenesisHash,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return &ImportGraphResponse{}, nil
