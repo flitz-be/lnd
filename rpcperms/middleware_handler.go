@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/runtime/protoiface"
 	"gopkg.in/macaroon.v2"
 )
 
@@ -528,4 +529,44 @@ func parseProto(typeName string, serialized []byte) (proto.Message, error) {
 	}
 
 	return msg.Interface(), nil
+}
+
+// replaceProtoMsg replaces the given target message with the content of the
+// replacement message.
+func replaceProtoMsg(target interface{}, replacement interface{}) error {
+	_, ok := target.(protoiface.MessageV1)
+	if !ok {
+		return fmt.Errorf("target is not a v1 proto message: %v",
+			target)
+	}
+	targetMsg, ok := target.(proto.Message)
+	if !ok {
+		return fmt.Errorf("target is not a v2 proto message: %v",
+			target)
+	}
+
+	replacementMsg, ok := replacement.(proto.Message)
+	if !ok {
+		return fmt.Errorf("replacement is not a proto message: %v",
+			replacement)
+	}
+
+	if targetMsg.ProtoReflect().Type() !=
+		replacementMsg.ProtoReflect().Type() {
+
+		return fmt.Errorf("replacement message is of wrong type")
+	}
+
+	replacementBytes, err := proto.Marshal(replacementMsg)
+	if err != nil {
+		return fmt.Errorf("error marshaling replacement: %v", err)
+	}
+
+	target.(protoiface.MessageV1).Reset()
+	err = proto.Unmarshal(replacementBytes, targetMsg)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling replacement: %v", err)
+	}
+
+	return nil
 }
