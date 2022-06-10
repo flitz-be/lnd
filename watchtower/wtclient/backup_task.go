@@ -193,7 +193,17 @@ func (t *backupTask) bindSession(session *wtdb.ClientSessionBody) error {
 	}
 
 	// All justice transactions have a p2wkh output paying to the victim.
-	weightEstimate.AddP2WKHOutput()
+	switch len(t.sweepPkScript) {
+	case input.P2WPKHSize:
+		weightEstimate.AddP2WKHOutput()
+
+	case input.P2WSHSize:
+		weightEstimate.AddP2WSHOutput()
+
+	default:
+		return fmt.Errorf("invalid sweep script length %d",
+			len(t.sweepPkScript))
+	}
 
 	// If the justice transaction has a reward output, add the output's
 	// contribution to the weight estimate.
