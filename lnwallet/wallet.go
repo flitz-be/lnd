@@ -763,7 +763,7 @@ func (l *LightningWallet) handleFundingReserveRequest(req *InitFundingReserveMsg
 			FeeRate:      req.FundingFeePerKw,
 			ChangeAddr: func() (btcutil.Address, error) {
 				return l.NewAddress(
-					WitnessPubKey, true, DefaultAccountName,
+					TaprootPubkey, true, DefaultAccountName,
 				)
 			},
 		}
