@@ -24,6 +24,8 @@ addresses](https://github.com/lightningnetwork/lnd/pull/6263). Using
 `lncli newaddress p2tr` will create a new BIP-0086 keyspend only address and
 then watch it on chain. Taproot script spends are also supported through the
 `signrpc.SignOutputRaw` RPC (`/v2/signer/signraw` in REST).
+The [wallet also creates P2TR change addresses by
+default](https://github.com/lightningnetwork/lnd/pull/6632) in most cases.
 
 The `walletrpc.SignPsbt` RPC now also supports [Taproot PSBT
 signing](https://github.com/lightningnetwork/lnd/pull/6450) to fully support
